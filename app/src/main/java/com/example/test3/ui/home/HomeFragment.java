@@ -53,7 +53,7 @@ public class HomeFragment extends Fragment {
         webView.setWebChromeClient(new WebChromeClient());
 
         // 加载抖音视频页面
-        webView.loadUrl("https://www.fj36c.com/index/home.html");
+        webView.loadUrl("https://www.douyin.com");
     }
 
     private void injectCustomCSS() {
