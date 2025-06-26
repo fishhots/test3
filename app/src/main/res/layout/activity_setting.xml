@@ -3,7 +3,9 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/setting"
+    >
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
@@ -41,7 +43,7 @@
                     android:layout_width="100dp"
                     android:layout_height="100dp"
                     android:layout_centerHorizontal="true"
-                    android:src="@drawable/ic_launcher_foreground"
+                    android:src="@drawable/headlike"
                     app:civ_border_width="2dp"
                     app:civ_border_color="#FF000000"/>
 
@@ -52,6 +54,7 @@
                     android:layout_below="@id/profile_image"
                     android:layout_centerHorizontal="true"
                     android:layout_marginTop="8dp"
+                    android:background="#80FFFFFF"
                     android:text="修改头像"/>
             </RelativeLayout>
 
@@ -66,6 +69,7 @@
                     android:id="@+id/edit_username"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="#80FFFFFF"
                     android:hint="用户名"/>
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -79,6 +83,7 @@
                     android:id="@+id/edit_email"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="#80FFFFFF"
                     android:hint="邮箱"
                     android:inputType="textEmailAddress"/>
             </com.google.android.material.textfield.TextInputLayout>
@@ -88,6 +93,7 @@
                 android:id="@+id/btn_change_password"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="#80FFFFFF"
                 android:text="修改密码"/>
 
             <!-- 保存按钮 -->
@@ -95,6 +101,7 @@
                 android:id="@+id/btn_save"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="#80FFFFFF"
                 android:layout_marginTop="24dp"
                 android:text="保存修改"
                 android:backgroundTint="@color/design_default_color_primary"/>
@@ -104,7 +111,7 @@
                 android:id="@+id/btn_logout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="86dp"
                 android:text="退出登录"
                 android:backgroundTint="#FF0000"/>
 

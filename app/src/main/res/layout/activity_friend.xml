@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/friend_context_starsky"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -17,12 +18,16 @@
             android:layout_weight="1"
             android:hint="输入用户名搜索"
             android:inputType="text"
+            android:background="#20FFFFFF"
             android:padding="12dp" />
 
         <Button
             android:id="@+id/search_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@color/black"
+            android:backgroundTint="@android:color/white"
+            android:background="#00FFFFFF"
             android:text="搜索" />
 
     </LinearLayout>
@@ -32,6 +37,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        android:inputType="text"
+        android:textColor="@color/white"
+        android:background="#80FFFFFF"
+        android:backgroundTint="@android:color/white"
         android:text="添加好友" />
 
 </LinearLayout> 
