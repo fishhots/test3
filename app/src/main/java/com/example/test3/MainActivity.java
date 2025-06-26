@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
+        //1
         username = getIntent().getStringExtra("username");
         dbHelper = new DatabaseHelper(this);
 

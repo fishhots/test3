@@ -26,8 +26,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_AVATAR = "avatar";
 
     // Friends table columns
-    private static final String COLUMN_USER_ID = "user_id";
-    private static final String COLUMN_FRIEND_ID = "friend_id";
+    public static final String COLUMN_USER_ID = "user_id";
+    public static final String COLUMN_FRIEND_ID = "friend_id";
     private static final String COLUMN_STATUS = "status";
 
     // Messages table columns
@@ -128,8 +128,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.query(TABLE_USERS,
                 new String[] { COLUMN_ID, COLUMN_USERNAME, COLUMN_EMAIL, COLUMN_AVATAR },
-                COLUMN_USERNAME + " LIKE ?",
-                new String[] { "%" + query + "%" },
+                COLUMN_USERNAME + " = ?",
+                new String[] { query },
                 null, null, null);
     }
 
@@ -254,5 +254,34 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
 
         return userId;
+    }
+
+    public boolean isFriend(long userId, long friendId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_FRIENDS,
+                new String[] { COLUMN_ID },
+                COLUMN_USER_ID + "=? AND " + COLUMN_FRIEND_ID + "=?",
+                new String[] { String.valueOf(userId), String.valueOf(friendId) },
+                null, null, null);
+        boolean exists = cursor != null && cursor.moveToFirst();
+        if (cursor != null) {
+            cursor.close();
+        }
+        return exists;
+    }
+
+    public String getUsernameById(long userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String username = null;
+        Cursor cursor = db.query(TABLE_USERS,
+                new String[] { COLUMN_USERNAME },
+                COLUMN_ID + "=?",
+                new String[] { String.valueOf(userId) },
+                null, null, null);
+        if (cursor != null && cursor.moveToFirst()) {
+            username = cursor.getString(cursor.getColumnIndex(COLUMN_USERNAME));
+            cursor.close();
+        }
+        return username;
     }
 }

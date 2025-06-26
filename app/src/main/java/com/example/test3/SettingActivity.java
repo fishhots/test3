@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -24,8 +25,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.bumptech.glide.Glide;
+import com.example.test3.broadcast.FriendReceiver;
+import com.example.test3.broadcast.SettingReceiver;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import de.hdodenhof.circleimageview.CircleImageView;
@@ -50,17 +54,29 @@ public class SettingActivity extends AppCompatActivity {
     private DatabaseHelper dbHelper;
     private long userId;
     private String currentAvatarPath;
-
+    private LocalBroadcastManager localBroadcastManager;
+    private SettingReceiver settingReceiver;
     private static final int CAMERA_PERMISSION_CODE = 100;
     private static final int STORAGE_PERMISSION_CODE = 101;
-
     private ActivityResultLauncher<Intent> cameraLauncher;
     private ActivityResultLauncher<Intent> galleryLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
-
     // 保存最后请求的操作
     private Runnable lastRequestedOperation = null;
-
+    public static final String ACTION_SETTING = "com.example.test3.ACTION_SETTING";
+    public static final String EXTRA_SETTING_TYPE = "setting_type";
+    public static final  String UP_PIC_FAILURE="Setting.UP_PIC_FAILURE";
+    public static final String CREATE_PIC_FAILURE="Setting.CREATE_PIC_FAILURE";
+    public static final String CAMERA_NOT_FOUND="Setting.CAMERA_NOT_FOUND";
+    public static final String FULLFILL_PASSWORD="Setting.FULLFILL_PASSWORD";
+    public static final String PASSWORD_NOT_SAME="Setting.PASSWORD_NOT_SAME";
+    public static final String PASSWORD_IS_SAME="Setting.PASSWORD_IS_SAME";
+    public static final String CHANGE_PASSWORD_SUCCESS="Setting.CHANGE_PASSWORD_SUCCESS";
+    public static final String WRONG_PASSWORD="Setting.WRONG_PASSWORD";
+    public static final String ERROR_TYPE="Setting.ERROR_TYPE";
+    public static final String UNFULL_MESSAGE="Setting.UNFULL_MESSAGE";
+    public static final String SAVE_SUCCESS="Setting.SAVE_SUCCESS";
+    public static final String SAVE_FAILURE="Setting.SAVE_FAILURE";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -69,6 +85,11 @@ public class SettingActivity extends AppCompatActivity {
         // 初始化数据库
         dbHelper = new DatabaseHelper(this);
 
+        localBroadcastManager = LocalBroadcastManager.getInstance(this);
+        settingReceiver = new SettingReceiver();
+        // 注册广播接收器
+        IntentFilter intentFilter = new IntentFilter();
+        initReceiver(intentFilter);
         // 初始化视图
         initViews();
         // 设置工具栏
@@ -197,7 +218,7 @@ public class SettingActivity extends AppCompatActivity {
             dbHelper.updateUserAvatar(userId, currentAvatarPath);
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "保存头像失败", Toast.LENGTH_SHORT).show();
+            broad(ACTION_SETTING,EXTRA_SETTING_TYPE,UP_PIC_FAILURE);
         }
     }
 
@@ -264,7 +285,7 @@ public class SettingActivity extends AppCompatActivity {
         try {
             photoFile = createImageFile();
         } catch (IOException ex) {
-            Toast.makeText(this, "创建图片文件失败", Toast.LENGTH_SHORT).show();
+            broad(ACTION_SETTING,EXTRA_SETTING_TYPE,CREATE_PIC_FAILURE);
             return;
         }
 
@@ -280,7 +301,7 @@ public class SettingActivity extends AppCompatActivity {
             try {
                 cameraLauncher.launch(takePictureIntent);
             } catch (ActivityNotFoundException e) {
-                Toast.makeText(this, "未找到相机应用", Toast.LENGTH_SHORT).show();
+                broad(ACTION_SETTING,EXTRA_SETTING_TYPE,CAMERA_NOT_FOUND);
             }
         }
     }
@@ -291,9 +312,9 @@ public class SettingActivity extends AppCompatActivity {
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File image = File.createTempFile(
-                imageFileName, /* prefix */
-                ".jpg", /* suffix */
-                storageDir /* directory */
+                imageFileName,
+                ".jpg",
+                storageDir
         );
 
         // 保存文件路径用于后续使用
@@ -363,33 +384,38 @@ public class SettingActivity extends AppCompatActivity {
 
                 // 验证所有字段是否填写
                 if (oldPassword.isEmpty() || newPassword.isEmpty() || confirmPassword.isEmpty()) {
+                    broad(ACTION_SETTING,EXTRA_SETTING_TYPE,FULLFILL_PASSWORD);
                     Toast.makeText(SettingActivity.this, "请填写所有密码字段", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
                 // 验证新密码格式
                 if (!isValidPassword(newPassword)) {
+                    broad(ACTION_SETTING,EXTRA_SETTING_TYPE,ERROR_TYPE);
                     newPasswordLayout.setError("密码格式不正确");
                     return;
                 }
-
                 // 验证两次密码是否匹配
                 if (!newPassword.equals(confirmPassword)) {
+                    broad(ACTION_SETTING,EXTRA_SETTING_TYPE,PASSWORD_NOT_SAME);
                     confirmPasswordLayout.setError("两次输入的密码不一致");
                     return;
                 }
 
                 // 验证新密码不能与旧密码相同
                 if (newPassword.equals(oldPassword)) {
+                    broad(PASSWORD_IS_SAME);
                     newPasswordLayout.setError("新密码不能与原密码相同");
                     return;
                 }
 
                 // 更新密码
                 if (dbHelper.updateUserPassword(userId, oldPassword, newPassword)) {
+                    broad(ACTION_SETTING,EXTRA_SETTING_TYPE,CHANGE_PASSWORD_SUCCESS);
                     Toast.makeText(SettingActivity.this, "密码修改成功", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
                 } else {
+                    broad(ACTION_SETTING,EXTRA_SETTING_TYPE,WRONG_PASSWORD);
                     oldPasswordEdit.setError("原密码错误");
                 }
             });
@@ -401,7 +427,7 @@ public class SettingActivity extends AppCompatActivity {
     // 验证新密码格式
     private boolean isValidPassword(String password) {
         // 密码至少6位，包含字母和数字
-        String passwordPattern = "^(?=.*[0-9])(?=.*[a-zA-Z]).{6,}$";
+        String passwordPattern = "^(?=.*[0-9])(?=.*[a-zA-Z])$";
         return password.matches(passwordPattern);
     }
 
@@ -410,7 +436,7 @@ public class SettingActivity extends AppCompatActivity {
         if (password.isEmpty()) {
             layout.setError("密码不能为空");
         } else if (!isValidPassword(password)) {
-            layout.setError("密码必须至少6位，包含字母和数字");
+            layout.setError("密码必须至少6位");
         } else {
             layout.setError(null);
         }
@@ -432,7 +458,7 @@ public class SettingActivity extends AppCompatActivity {
         String newEmail = editEmail.getText().toString().trim();
 
         if (newUsername.isEmpty() || newEmail.isEmpty()) {
-            Toast.makeText(this, "请填写完整信息", Toast.LENGTH_SHORT).show();
+            broad(ACTION_SETTING,EXTRA_SETTING_TYPE,UNFULL_MESSAGE);
             return;
         }
 
@@ -443,11 +469,10 @@ public class SettingActivity extends AppCompatActivity {
             resultIntent.putExtra("updated_email", newEmail);
             resultIntent.putExtra("updated_avatar", currentAvatarPath);
             setResult(RESULT_OK, resultIntent);
-
-            Toast.makeText(this, "保存成功", Toast.LENGTH_SHORT).show();
-            finish(); // 返回上一页
+            broad(SAVE_SUCCESS);
+            finish();
         } else {
-            Toast.makeText(this, "保存失败", Toast.LENGTH_SHORT).show();
+            broad(SAVE_FAILURE);
         }
     }
 
@@ -491,5 +516,20 @@ public class SettingActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         onBackPressed();
         return true;
+    }
+    public void initReceiver(IntentFilter intentFilter){
+        intentFilter.addAction(ACTION_SETTING);
+        intentFilter.addAction(SAVE_SUCCESS);
+        intentFilter.addAction(SAVE_FAILURE);
+        localBroadcastManager.registerReceiver(settingReceiver, intentFilter);
+    }
+    public void broad(String flag,String tag,String value){
+        Intent intent = new Intent(flag);
+        intent.putExtra(tag, value);
+        localBroadcastManager.sendBroadcast(intent);
+    }
+    public void broad(String flag){
+        Intent intent = new Intent(flag);
+        localBroadcastManager.sendBroadcast(intent);
     }
 }

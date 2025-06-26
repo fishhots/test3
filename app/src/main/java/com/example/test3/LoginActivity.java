@@ -1,5 +1,6 @@
 package com.example.test3;
 
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.content.Intent;
@@ -10,6 +11,9 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import com.example.test3.broadcast.AuthReceiver;
 import com.google.android.material.textfield.TextInputEditText;
 
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener {
@@ -22,12 +26,28 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     public static final String PREF_NAME = "UserPrefs";
     public static final String KEY_USER_ID = "user_id";
     public static final String KEY_USERNAME = "username";
+    private LocalBroadcastManager localBroadcastManager;
+    private AuthReceiver authReceiver;
+
+    public static final String LOGIN="LOGIN";
+    public static final String ERROR_TYPE="ERROR_TYPE";
+    public static final String UNFULL_MESSAGE="UNFULL_MESSAGE";
+    public static final String WRONG="WRONG";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        initView();
         databaseHelper = new DatabaseHelper(this);
+
+
+        localBroadcastManager = LocalBroadcastManager.getInstance(this);
+        authReceiver = new AuthReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        initReceiver(intentFilter);
+    }
+    public void initView(){
         usernameInput = findViewById(R.id.username);
         passwordInput = findViewById(R.id.password);
         loginButton = (Button) findViewById(R.id.login_button);
@@ -35,14 +55,13 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         loginButton.setOnClickListener(this);
         registerButton.setOnClickListener(this);
     }
-
     public void onClick(View v) {
         if (v.getId() == R.id.login_button) {
             String username = usernameInput.getText().toString().trim();
             String password = passwordInput.getText().toString().trim();
 
             if (username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "请输入完整信息", Toast.LENGTH_SHORT).show();
+                broad(LOGIN,ERROR_TYPE,UNFULL_MESSAGE);
                 return;
             }
             if (databaseHelper.checkLogin(username, password)) {
@@ -66,12 +85,26 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                     Log.e("LoginActivity", "启动MainActivity失败", e);
                 }
             } else {
-                Toast.makeText(this, "用户名或密码错误", Toast.LENGTH_SHORT).show();
+                broad(LOGIN,ERROR_TYPE,WRONG);
+
             }
         }
         if (v.getId() == R.id.register_button) {
             Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
             startActivity(intent);
         }
+    }
+    public void initReceiver(IntentFilter intentFilter){
+        intentFilter.addAction(LOGIN);
+        localBroadcastManager.registerReceiver(authReceiver, intentFilter);
+    }
+    public void broad(String flag,String tag,String value){
+        Intent intent = new Intent(flag);
+        intent.putExtra(tag, value);
+        localBroadcastManager.sendBroadcast(intent);
+    }
+    public void broad(String flag){
+        Intent intent = new Intent(flag);
+        localBroadcastManager.sendBroadcast(intent);
     }
 }

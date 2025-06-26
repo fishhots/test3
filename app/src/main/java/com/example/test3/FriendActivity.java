@@ -1,26 +1,65 @@
 package com.example.test3;
 
+import android.content.ContentValues;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import android.database.Cursor;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import android.content.Context;
+import android.content.IntentFilter;
+
+import com.example.test3.provider.FriendProvider;
+import com.example.test3.service.FriendService;
+import com.example.test3.broadcast.FriendReceiver;
+import com.example.test3.util.Util;
 
 public class FriendActivity extends AppCompatActivity {
 
     private EditText searchInput;
     private Button searchButton;
     private Button addButton;
-    private DatabaseHelper databaseHelper;
+    private LocalBroadcastManager localBroadcastManager;
+    private FriendReceiver friendReceiver;
+    private DatabaseHelper dbHelper;
+    // 定义广播Action
+    public static final String ACTION_FRIEND_ADD = "com.example.test3.ACTION_FRIEND_ADD";
+    public static final String ACTION_FRIEND_SEARCH = "com.example.test3.ACTION_FRIEND_SEARCH";
+    public static final String ACTION_FRIEND_NOT_FOUND = "com.example.test3.ACTION_FRIEND_NOT_FOUND";
+    public static final String NONE_INPUT = "com.example.test3.NONE_INPUT";
+    public static final String ADD_FAILURE = "com.example.test3.ADD_FAILURE";
+    public static final String SEARCH_SUCCESS = "com.example.test3.SEARCH_SUCCESS";
+    public static final String SEARCH_FIRST = "com.example.test3.SEARCH_FIRST";
+    public static final String ALREADY_FRIEND = "com.example.test3.ALREADY_FRIEND";
+    public static final String ADD_SELF = "com.example.test3.ADD_SELF";
+    public static final String EXTRA_FRIEND_NAME = "friend_name";
+
+    public static final String EXTRA_SEARCH_QUERY = "search_query";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_friend);
 
-        databaseHelper = new DatabaseHelper(this);
+        // 初始化DatabaseHelper
+        dbHelper = new DatabaseHelper(this);
+        // 初始化LocalBroadcastManager
+        localBroadcastManager = LocalBroadcastManager.getInstance(this);
+        friendReceiver = new FriendReceiver();
+        // 注册广播接收器
+        IntentFilter intentFilter = new IntentFilter();
+        initReceiver(intentFilter);
+
+        // 启动FriendService
+        Intent serviceIntent = new Intent(this, FriendService.class);
+        startService(serviceIntent);
 
         searchInput = findViewById(R.id.search_input);
         searchButton = findViewById(R.id.search_button);
@@ -33,76 +72,115 @@ public class FriendActivity extends AppCompatActivity {
     private void searchUser() {
         String query = searchInput.getText().toString().trim();
         if (query.isEmpty()) {
-            Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show();
+            broad(NONE_INPUT, EXTRA_SEARCH_QUERY, query);
             return;
         }
+        // 发送搜索广播
+        broad(ACTION_FRIEND_SEARCH, EXTRA_SEARCH_QUERY, query);
 
-        Cursor cursor = databaseHelper.searchUsers(query);
+        // 执行搜索
+        Uri searchUri = Uri.withAppendedPath(FriendProvider.SEARCH_URI, query);
+        Cursor cursor = getContentResolver().query(searchUri, null, null, null, null);
+
         if (cursor != null && cursor.moveToFirst()) {
-            String username = cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_USERNAME));
-            String email = cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL));
-            long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
+            // 处理搜索结果
+            int idIndex = cursor.getColumnIndex(DatabaseHelper.COLUMN_ID);
+            int usernameIndex = cursor.getColumnIndex(DatabaseHelper.COLUMN_USERNAME);
+            long userId = cursor.getLong(idIndex);
+            String username = cursor.getString(usernameIndex);
 
-            // 显示搜索结果
-            showSearchResult(userId, username, email);
+            broad(SEARCH_SUCCESS, EXTRA_FRIEND_NAME, username);
+            // 显示添加按钮
+            addButton.setVisibility(View.VISIBLE);
+            addButton.setTag(userId);
+
             cursor.close();
         } else {
-            Toast.makeText(this, "未找到用户", Toast.LENGTH_SHORT).show();
+            broad(ACTION_FRIEND_NOT_FOUND);
+            addButton.setVisibility(View.GONE);
         }
-    }
-
-    private void showSearchResult(long userId, String username, String email) {
-        // 这里可以显示一个对话框来确认是否添加好友
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("搜索结果")
-                .setMessage("用户名: " + username + "\n邮箱: " + email)
-                .setPositiveButton("添加好友", (dialog, which) -> {
-                    addFriendById(userId);
-                })
-                .setNegativeButton("取消", null)
-                .show();
     }
 
     private void addFriend() {
-        String username = searchInput.getText().toString().trim();
-        if (username.isEmpty()) {
-            Toast.makeText(this, "请输入用户名", Toast.LENGTH_SHORT).show();
+        Object tag = addButton.getTag();
+        if (tag == null) {
+            broad(SEARCH_FIRST);
+            return;
+        }
+        long friendId = (Long) tag;
+        SharedPreferences prefs = getSharedPreferences(LoginActivity.PREF_NAME, Context.MODE_PRIVATE);
+        long currentUserId = prefs.getLong(LoginActivity.KEY_USER_ID, -1);
+
+        if (currentUserId == -1) {
+            broad(ADD_FAILURE);
             return;
         }
 
-        // 先搜索用户
-        Cursor cursor = databaseHelper.searchUsers(username);
-        if (cursor != null && cursor.moveToFirst()) {
-            long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
-            addFriendById(userId);
-            cursor.close();
-        } else {
-            Toast.makeText(this, "未找到用户", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void addFriendById(long friendId) {
-        // 获取当前用户ID（这里需要从登录信息或其他地方获取）
-        long currentUserId = getCurrentUserId();
-
+        // 检查是否添加自己
         if (currentUserId == friendId) {
-            Toast.makeText(this, "不能添加自己为好友", Toast.LENGTH_SHORT).show();
+            broad(ADD_SELF);
             return;
         }
 
-        long result = databaseHelper.addFriend(currentUserId, friendId);
-        if (result != -1) {
-            Toast.makeText(this, "添加好友成功", Toast.LENGTH_SHORT).show();
-            setResult(RESULT_OK);
-            finish();
+        // 检查是否已经是好友
+        if (dbHelper.isFriend(currentUserId, friendId)) {
+            broad(ALREADY_FRIEND);
+            return;
+        }
+
+        // 添加好友到数据库
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_USER_ID, currentUserId);
+        values.put(DatabaseHelper.COLUMN_FRIEND_ID, friendId);
+
+        Uri uri = getContentResolver().insert(FriendProvider.CONTENT_URI, values);
+        if (uri != null) {
+            // 获取好友用户名
+            String friendUsername = dbHelper.getUsernameById(friendId);
+            if (friendUsername != null) {
+                // 发送添加好友成功的广播
+                broad(ACTION_FRIEND_ADD, EXTRA_FRIEND_NAME, friendUsername);
+                Toast.makeText(this,"已添加好友："+friendUsername,Toast.LENGTH_SHORT).show();
+                setResult(RESULT_OK);
+                finish();
+            } else {
+                broad(ADD_FAILURE);
+            }
         } else {
-            Toast.makeText(this, "添加好友失败", Toast.LENGTH_SHORT).show();
+            broad(ADD_FAILURE);
         }
     }
 
-    private long getCurrentUserId() {
-        // 这里需要实现获取当前登录用户ID的逻辑
-        // 可以从SharedPreferences或其他地方获取
-        return 1; // 临时返回1，需要修改为实际的用户ID
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 注销广播接收器
+        if (friendReceiver != null) {
+            localBroadcastManager.unregisterReceiver(friendReceiver);
+        }
+        // 停止FriendService
+        stopService(new Intent(this, FriendService.class));
     }
+    public void initReceiver(IntentFilter intentFilter){
+        intentFilter.addAction(ACTION_FRIEND_ADD);
+        intentFilter.addAction(ACTION_FRIEND_SEARCH);
+        intentFilter.addAction(ACTION_FRIEND_NOT_FOUND);
+        intentFilter.addAction(SEARCH_SUCCESS);
+        intentFilter.addAction(SEARCH_FIRST);
+        intentFilter.addAction(NONE_INPUT);
+        intentFilter.addAction(ALREADY_FRIEND);
+        intentFilter.addAction(ADD_SELF);
+        localBroadcastManager.registerReceiver(friendReceiver, intentFilter);
+    }
+    public void broad(String flag, String tag, String value) {
+        Intent intent = new Intent(flag);
+        intent.putExtra(tag, value);
+        localBroadcastManager.sendBroadcast(intent);
+    }
+
+    public void broad(String flag) {
+        Intent intent = new Intent(flag);
+        localBroadcastManager.sendBroadcast(intent);
+    }
+
 }

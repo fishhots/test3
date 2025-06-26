@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.net.Uri;
+import android.content.ContentUris;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -24,6 +26,7 @@ import com.example.test3.FriendActivity;
 import com.example.test3.LoginActivity;
 import com.example.test3.R;
 import com.example.test3.adapter.FriendAdapter;
+import com.example.test3.provider.FriendProvider;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,7 +35,6 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
     private RecyclerView recyclerView;
     private TextView emptyView;
     private FriendAdapter friendAdapter;
-    private DatabaseHelper databaseHelper;
     private List<FriendAdapter.FriendItem> friendList;
     private ActivityResultLauncher<Intent> addFriendLauncher;
     private long currentUserId = -1;
@@ -42,12 +44,10 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 从SharedPreferences获取用户ID
         SharedPreferences prefs = requireActivity().getSharedPreferences(LoginActivity.PREF_NAME, Context.MODE_PRIVATE);
         currentUserId = prefs.getLong(LoginActivity.KEY_USER_ID, -1);
         String currentUserName = prefs.getString(LoginActivity.KEY_USERNAME, "");
 
-        // 注册Activity Result回调
         addFriendLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -61,21 +61,17 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
             ViewGroup container, Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_chat, container, false);
 
-        databaseHelper = new DatabaseHelper(requireContext());
         friendList = new ArrayList<>();
 
-        // 初始化视图
         recyclerView = root.findViewById(R.id.friends_recycler_view);
         emptyView = root.findViewById(R.id.empty_view);
         add = root.findViewById(R.id.fab_add_friend);
 
-        // 设置RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         friendAdapter = new FriendAdapter(getContext(), friendList);
         friendAdapter.setOnFriendClickListener(this);
         recyclerView.setAdapter(friendAdapter);
 
-        // 添加好友按钮点击事件
         add.setOnClickListener(v -> {
             if (currentUserId != -1) {
                 Intent intent = new Intent(getActivity(), FriendActivity.class);
@@ -85,7 +81,6 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
             }
         });
 
-        // 加载好友列表
         loadFriends();
 
         return root;
@@ -97,8 +92,12 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
             return;
         }
 
-        // 获取当前用户的好友列表
-        Cursor cursor = databaseHelper.getFriends(currentUserId);
+        Cursor cursor = requireActivity().getContentResolver().query(
+                FriendProvider.CONTENT_URI,
+                null,
+                null,
+                new String[] { String.valueOf(currentUserId) },
+                null);
 
         friendList.clear();
         if (cursor != null && cursor.moveToFirst()) {
@@ -115,7 +114,6 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
             cursor.close();
         }
 
-        // 更新UI显示
         if (friendList.isEmpty()) {
             recyclerView.setVisibility(View.GONE);
             emptyView.setVisibility(View.VISIBLE);
@@ -134,11 +132,15 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
             return;
         }
 
-        // 删除好友
-        boolean success = databaseHelper.deleteFriend(currentUserId, friend.getId());
-        if (success) {
+        Uri deleteUri = ContentUris.withAppendedId(FriendProvider.CONTENT_URI, friend.getId());
+        int count = requireActivity().getContentResolver().delete(
+                deleteUri,
+                null,
+                new String[] { String.valueOf(currentUserId) });
+
+        if (count > 0) {
             Toast.makeText(getContext(), "已删除好友", Toast.LENGTH_SHORT).show();
-            loadFriends(); // 重新加载好友列表
+            loadFriends();
         } else {
             Toast.makeText(getContext(), "删除失败", Toast.LENGTH_SHORT).show();
         }
@@ -146,19 +148,18 @@ public class ChatFragment extends Fragment implements FriendAdapter.OnFriendClic
 
     @Override
     public void onFriendClick(FriendAdapter.FriendItem friend) {
-        // 从SharedPreferences获取当前用户信息
         SharedPreferences prefs = requireActivity().getSharedPreferences(LoginActivity.PREF_NAME, Context.MODE_PRIVATE);
         String currentUserName = prefs.getString(LoginActivity.KEY_USERNAME, "");
-        Log.i("abc","2");
-        // 创建聊天意图
+        Log.i("abc", "2");
+
         Intent intent = new Intent(getActivity(), ChatActivity.class);
         intent.putExtra(ChatActivity.EXTRA_FRIEND_ID, friend.getId());
         intent.putExtra(ChatActivity.EXTRA_FRIEND_NAME, friend.getUsername());
         intent.putExtra(ChatActivity.EXTRA_USER_ID, currentUserId);
         intent.putExtra(ChatActivity.EXTRA_USER_NAME, currentUserName);
-        Log.i("abc","3");
-        // 启动ChatActivity
+        Log.i("abc", "3");
+
         startActivity(intent);
-        Log.i("abc","4");
+        Log.i("abc", "4");
     }
 }
