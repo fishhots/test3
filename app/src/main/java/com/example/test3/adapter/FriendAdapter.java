@@ -63,7 +63,7 @@ public class FriendAdapter extends RecyclerView.Adapter<FriendAdapter.ViewHolder
         // 设置整个项目的点击事件
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
-                Log.i("abc","111");
+                Log.i("abc", "111");
                 listener.onFriendClick(friend);
             }
         });

@@ -1,5 +1,9 @@
 package com.example.test3.ui.home;
 
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -8,20 +12,48 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import com.example.test3.R;
+import com.example.test3.service.HomeService;
+import com.example.test3.broadcast.NetworkReceiver;
 
 public class HomeFragment extends Fragment {
 
+    private HomeViewModel homeViewModel;
     private WebView webView;
+    private NetworkReceiver networkReceiver;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // 初始化网络广播接收器
+        networkReceiver = new NetworkReceiver();
+    }
 
     public View onCreateView(@NonNull LayoutInflater inflater,
             ViewGroup container, Bundle savedInstanceState) {
+        homeViewModel = new ViewModelProvider(this).get(HomeViewModel.class);
         View root = inflater.inflate(R.layout.fragment_home, container, false);
+        final TextView textView = root.findViewById(R.id.text_home);
+        homeViewModel.getText().observe(getViewLifecycleOwner(), textView::setText);
 
         webView = root.findViewById(R.id.webview);
         setupWebView();
+
+        // 启动HomeService
+        Intent serviceIntent = new Intent(requireContext(), HomeService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            requireContext().startForegroundService(serviceIntent);
+        } else {
+            requireContext().startService(serviceIntent);
+        }
+
+        // 注册网络状态广播接收器
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        requireActivity().registerReceiver(networkReceiver, filter);
 
         return root;
     }
@@ -104,6 +136,12 @@ public class HomeFragment extends Fragment {
         super.onDestroyView();
         if (webView != null) {
             webView.destroy();
+        }
+        // 停止HomeService
+        requireContext().stopService(new Intent(requireContext(), HomeService.class));
+        // 注销广播接收器
+        if (networkReceiver != null) {
+            requireActivity().unregisterReceiver(networkReceiver);
         }
     }
 }
